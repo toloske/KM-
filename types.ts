@@ -11,25 +11,11 @@ export interface VehicleData {
   actualAvg: number;
   fuelUsed: number;
   group: string;
-  fuelGap: number; // Diferença entre real e ideal
-}
-
-export interface ModelAnalysis {
-  model: string;
-  count: number;
-  avgKm: number;
-  avgFuelActual: number;
-  avgFuelIdeal: number;
-  totalKm: number;
-  efficiencyScore: number;
-}
-
-export interface SVCAnalysis {
-  svc: string;
-  count: number;
-  avgKm: number;
-  avgFuelActual: number;
-  fuelGapAvg: number;
+  fuelGap: number; 
+  estimatedFuelLiters?: number;
+  fuelWasteLiters?: number;
+  financialImpact?: number; // Custo do desvio em R$
+  fuelPriceUsed?: number;   // Preço do litro considerado
 }
 
 export interface GlobalStats {
@@ -38,5 +24,9 @@ export interface GlobalStats {
   fleetAvgKm: number;
   fleetAvgFuelActual: number;
   fleetAvgFuelIdeal: number;
+  totalFuelUsed: number;
+  totalEstimatedFuel: number;
   totalFuelGap: number;
+  fuelWasteTotal: number;
+  totalFinancialImpact: number; // Prejuízo total em R$
 }
