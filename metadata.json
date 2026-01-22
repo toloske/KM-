@@ -1,0 +1,5 @@
+{
+  "name": "Fleet Analytics - Unificado Sem Elétrico",
+  "description": "Uma plataforma de análise de frota focada em desempenho de modelos, SVCs e eficiência de combustível baseada em dados reais de telemetria.",
+  "requestFramePermissions": []
+}
