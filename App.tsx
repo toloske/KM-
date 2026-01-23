@@ -24,12 +24,13 @@ import {
   Info,
   Calendar,
   Layers,
-  MapPin
+  MapPin,
+  Gauge
 } from 'lucide-react';
 import { parseData } from './data';
 import { VehicleData } from './types';
 
-type SortKeys = 'vehicle' | 'svc' | 'distanceKm' | 'dailyKm' | 'estimatedFuelLiters' | 'fuelUsed' | 'fuelWasteLiters' | 'actualAvg' | 'financialImpact';
+type SortKeys = 'vehicle' | 'svc' | 'distanceKm' | 'dailyKm' | 'dailyFuel' | 'estimatedFuelLiters' | 'fuelUsed' | 'fuelWasteLiters' | 'actualAvg' | 'financialImpact';
 type SortOrder = 'asc' | 'desc';
 type TabType = 'performance' | 'financeira';
 
@@ -74,6 +75,7 @@ const App: React.FC = () => {
       const hasData = v.fuelUsed > 0;
       const fuelWaste = hasData ? (v.fuelUsed - estimatedFuel) : 0;
       const dailyKm = v.distanceKm / TOTAL_DAYS;
+      const dailyFuel = v.fuelUsed / TOTAL_DAYS;
       
       let price = FUEL_PRICES.DIESEL;
       const fuelTypeUpper = v.fuelType.toUpperCase();
@@ -84,6 +86,7 @@ const App: React.FC = () => {
       return {
         ...v,
         dailyKm,
+        dailyFuel,
         fuelGap: (hasData && estimatedFuel > 0) ? ((v.fuelUsed - estimatedFuel) / estimatedFuel) * 100 : 0,
         estimatedFuelLiters: estimatedFuel,
         fuelWasteLiters: fuelWaste,
@@ -91,7 +94,7 @@ const App: React.FC = () => {
         fuelPriceUsed: price,
         isValidForFinance: hasData
       };
-    }) as (VehicleData & { dailyKm: number; isValidForFinance: boolean })[];
+    }) as (VehicleData & { dailyKm: number; dailyFuel: number; isValidForFinance: boolean })[];
   }, []);
 
   const svcs = useMemo(() => ['Todos', ...new Set(processedData.map(v => v.svc))].sort(), [processedData]);
@@ -116,14 +119,26 @@ const App: React.FC = () => {
     const byModel = models.filter(m => m !== 'Todos').map(model => {
       const items = processedData.filter(v => v.model === model);
       const totalKm = items.reduce((acc, curr) => acc + curr.distanceKm, 0);
-      return { name: model, avgDaily: totalKm / (items.length * TOTAL_DAYS), count: items.length };
-    }).sort((a, b) => b.avgDaily - a.avgDaily).slice(0, 5);
+      const totalFuel = items.reduce((acc, curr) => acc + curr.fuelUsed, 0);
+      return { 
+        name: model, 
+        avgDailyKm: totalKm / (items.length * TOTAL_DAYS), 
+        avgDailyFuel: totalFuel / (items.length * TOTAL_DAYS),
+        count: items.length 
+      };
+    }).sort((a, b) => b.avgDailyKm - a.avgDailyKm).slice(0, 5);
 
     const bySVC = svcs.filter(s => s !== 'Todos').map(svc => {
       const items = processedData.filter(v => v.svc === svc);
       const totalKm = items.reduce((acc, curr) => acc + curr.distanceKm, 0);
-      return { name: svc, avgDaily: totalKm / (items.length * TOTAL_DAYS), count: items.length };
-    }).sort((a, b) => b.avgDaily - a.avgDaily).slice(0, 5);
+      const totalFuel = items.reduce((acc, curr) => acc + curr.fuelUsed, 0);
+      return { 
+        name: svc, 
+        avgDailyKm: totalKm / (items.length * TOTAL_DAYS), 
+        avgDailyFuel: totalFuel / (items.length * TOTAL_DAYS),
+        count: items.length 
+      };
+    }).sort((a, b) => b.avgDailyKm - a.avgDailyKm).slice(0, 5);
 
     return { byModel, bySVC };
   }, [processedData, models, svcs]);
@@ -134,7 +149,9 @@ const App: React.FC = () => {
     const totalActualFuel = filteredData.reduce((acc, curr) => acc + curr.fuelUsed, 0);
     const totalEstimatedFuel = filteredData.reduce((acc, curr) => acc + (curr.estimatedFuelLiters || 0), 0);
     
-    const fleetDailyAvg = totalDist / (filteredData.length * TOTAL_DAYS);
+    const fleetDailyKm = totalDist / (filteredData.length * TOTAL_DAYS);
+    const fleetDailyFuel = totalActualFuel / (filteredData.length * TOTAL_DAYS);
+    
     const totalWasteLoss = validFinanceData.filter(v => v.financialImpact > 0).reduce((acc, curr) => acc + curr.financialImpact, 0);
     const totalEconomyGain = validFinanceData.filter(v => v.financialImpact < 0).reduce((acc, curr) => acc + Math.abs(curr.financialImpact), 0);
     const totalGap = totalEstimatedFuel > 0 ? ((totalActualFuel - totalEstimatedFuel) / totalEstimatedFuel) * 100 : 0;
@@ -144,7 +161,8 @@ const App: React.FC = () => {
       totalFuelUsed: totalActualFuel,
       totalEstimatedFuel,
       fuelWasteTotal: totalActualFuel - totalEstimatedFuel,
-      fleetDailyAvg,
+      fleetDailyKm,
+      fleetDailyFuel,
       totalWasteLoss,
       totalEconomyGain,
       totalGap
@@ -232,8 +250,8 @@ const App: React.FC = () => {
         <header className="mb-10">
           <div className="flex justify-between items-start mb-8">
             <div>
-              <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Audit de Rodagem</h2>
-              <p className="text-slate-500 font-medium text-base mt-2">Relatório Trimestral de Eficiência Operacional.</p>
+              <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Análise de Médias</h2>
+              <p className="text-slate-500 font-medium text-base mt-2">Visão diária de rodagem e consumo por ativo.</p>
             </div>
             <div className="flex p-1 bg-white rounded-2xl border border-slate-200 shadow-sm">
                <button onClick={() => setActiveTab('performance')} className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-xs font-black transition-all ${activeTab === 'performance' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}><LayoutDashboard size={14} /><span>PERFORMANCE</span></button>
@@ -245,9 +263,9 @@ const App: React.FC = () => {
             {activeTab === 'performance' ? (
               <>
                 <StatCard title="Total Rodado" value={`${stats.totalDistance.toLocaleString('pt-BR')} km`} subtitle="Acumulado no período" icon={TrendingUp} colorClass="bg-slate-900" />
-                <StatCard title="Média da Frota" value={`${stats.fleetDailyAvg.toFixed(1)} km`} subtitle="Média por veículo / dia" icon={Target} colorClass="bg-indigo-600" />
-                <StatCard title="Consumo Real" value={`${stats.totalFuelUsed.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`} subtitle="Litragem total baixada" icon={Droplets} colorClass="bg-emerald-600" />
-                <StatCard title="Desvio Litros" value={`${stats.fuelWasteTotal.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`} subtitle="Excedente versus meta" icon={Fuel} trend={stats.totalGap.toFixed(1)} colorClass="bg-amber-600" />
+                <StatCard title="Km Médio / Dia" value={`${stats.fleetDailyKm.toFixed(1)} km`} subtitle="Média por veículo" icon={Target} colorClass="bg-indigo-600" />
+                <StatCard title="L Médio / Dia" value={`${stats.fleetDailyFuel.toFixed(1)} L`} subtitle="Consumo médio por veículo" icon={Droplets} colorClass="bg-amber-600" />
+                <StatCard title="Desvio Litros" value={`${stats.fuelWasteTotal.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`} subtitle="Litragem acima da meta" icon={Fuel} trend={stats.totalGap.toFixed(1)} colorClass="bg-rose-600" />
               </>
             ) : (
               <>
@@ -266,20 +284,23 @@ const App: React.FC = () => {
             <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><Layers size={20} /></div>
-                <h4 className="font-black text-slate-800 text-sm tracking-tight uppercase">Média Diária por Modelo (Top 5)</h4>
+                <h4 className="font-black text-slate-800 text-sm tracking-tight uppercase">Performance Diária por Modelo (Top 5)</h4>
               </div>
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {groupStats.byModel.map((item, idx) => (
                   <div key={idx}>
                     <div className="flex justify-between items-end mb-2">
                       <div>
                         <span className="text-xs font-black text-slate-800 uppercase block">{item.name}</span>
-                        <span className="text-[10px] text-slate-400 font-bold">{item.count} veículos na categoria</span>
+                        <div className="flex items-center space-x-2 text-[10px] font-bold text-slate-400">
+                          <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{item.count} veículos</span>
+                          <span className="text-amber-600 flex items-center"><Droplets size={10} className="mr-1" /> {item.avgDailyFuel.toFixed(1)} L/dia</span>
+                        </div>
                       </div>
-                      <span className="text-sm font-black text-indigo-600">{item.avgDaily.toFixed(1)} km/dia</span>
+                      <span className="text-sm font-black text-indigo-600">{item.avgDailyKm.toFixed(1)} km/dia</span>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(item.avgDaily / 200) * 100}%` }} />
+                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(item.avgDailyKm / 200) * 100}%` }} />
                     </div>
                   </div>
                 ))}
@@ -290,17 +311,22 @@ const App: React.FC = () => {
             <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600"><MapPin size={20} /></div>
-                <h4 className="font-black text-slate-800 text-sm tracking-tight uppercase">Média Diária por Unidade SVC (Top 5)</h4>
+                <h4 className="font-black text-slate-800 text-sm tracking-tight uppercase">Performance Diária por SVC (Top 5)</h4>
               </div>
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {groupStats.bySVC.map((item, idx) => (
                   <div key={idx}>
                     <div className="flex justify-between items-end mb-2">
-                      <span className="text-xs font-black text-slate-800 uppercase block">{item.name}</span>
-                      <span className="text-sm font-black text-emerald-600">{item.avgDaily.toFixed(1)} km/dia</span>
+                      <div>
+                        <span className="text-xs font-black text-slate-800 uppercase block">{item.name}</span>
+                        <div className="flex items-center space-x-2 text-[10px] font-bold text-slate-400">
+                           <span className="text-emerald-600 flex items-center"><Droplets size={10} className="mr-1" /> {item.avgDailyFuel.toFixed(1)} L/dia</span>
+                        </div>
+                      </div>
+                      <span className="text-sm font-black text-emerald-600">{item.avgDailyKm.toFixed(1)} km/dia</span>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(item.avgDaily / 200) * 100}%` }} />
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(item.avgDailyKm / 200) * 100}%` }} />
                     </div>
                   </div>
                 ))}
@@ -313,14 +339,11 @@ const App: React.FC = () => {
           <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-white">
             <div>
               <h3 className="font-black text-slate-900 tracking-tight text-2xl uppercase">
-                {activeTab === 'performance' ? 'Analítico de Performance' : 'Audit Financeiro'}
+                {activeTab === 'performance' ? 'Métricas de Rodagem Diária' : 'Visão Financeira por Ativo'}
               </h3>
               <p className="text-sm text-slate-400 font-medium mt-1">
-                {activeTab === 'performance' ? 'Métricas de rodagem diária e rendimento.' : 'Conversão do desperdício em valores monetários.'}
+                {activeTab === 'performance' ? 'Acompanhamento detalhado de médias por dia e rendimento.' : 'Audit de custos baseado no desvio de consumo.'}
               </p>
-            </div>
-            <div className="flex items-center space-x-2 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-               <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{filteredData.length} ATIVOS FILTRADOS</span>
             </div>
           </div>
           
@@ -337,6 +360,11 @@ const App: React.FC = () => {
                   <th onClick={() => handleSort('dailyKm')} className="px-8 py-6 text-[10px] font-black text-indigo-600 uppercase tracking-widest text-right border-b border-indigo-100 bg-indigo-50/10 cursor-pointer group">
                     <div className="flex items-center justify-end">KM / DIA <SortIcon col="dailyKm" /></div>
                   </th>
+                  
+                  {/* Nova Coluna Solicitada: L / DIA */}
+                  <th onClick={() => handleSort('dailyFuel')} className="px-8 py-6 text-[10px] font-black text-amber-600 uppercase tracking-widest text-right border-b border-amber-100 bg-amber-50/10 cursor-pointer group">
+                    <div className="flex items-center justify-end">L / DIA <SortIcon col="dailyFuel" /></div>
+                  </th>
 
                   {activeTab === 'performance' ? (
                     <>
@@ -349,9 +377,6 @@ const App: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <th onClick={() => handleSort('fuelUsed')} className="px-8 py-6 text-[10px] font-black text-slate-900 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50/50 group cursor-pointer">
-                        <div className="flex items-center justify-end">REAL (L) <SortIcon col="fuelUsed" /></div>
-                      </th>
                       <th onClick={() => handleSort('financialImpact')} className="px-8 py-6 text-[10px] font-black text-rose-600 uppercase tracking-widest text-right border-b border-rose-100 bg-rose-50/20 cursor-pointer group">
                         <div className="flex items-center justify-end">IMPACTO (R$) <SortIcon col="financialImpact" /></div>
                       </th>
@@ -379,9 +404,10 @@ const App: React.FC = () => {
                       {v.distanceKm.toLocaleString('pt-BR')}
                     </td>
                     <td className="px-8 py-5 text-right bg-indigo-50/10">
-                      <span className={`text-xs font-black ${v.dailyKm > stats.fleetDailyAvg * 1.5 ? 'text-amber-600' : 'text-indigo-600'}`}>
-                        {v.dailyKm.toFixed(1)} <span className="text-[9px] font-medium">km</span>
-                      </span>
+                      <span className="text-xs font-black text-indigo-600">{v.dailyKm.toFixed(1)}</span>
+                    </td>
+                    <td className="px-8 py-5 text-right bg-amber-50/10">
+                      <span className="text-xs font-black text-amber-700">{v.dailyFuel.toFixed(1)} <span className="text-[9px] font-medium opacity-70">L</span></span>
                     </td>
 
                     {activeTab === 'performance' ? (
@@ -397,9 +423,6 @@ const App: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <td className="px-8 py-5 text-right bg-slate-50/50 text-xs text-slate-900 font-black">
-                          {v.fuelUsed.toFixed(1)} L
-                        </td>
                         <td className="px-8 py-5 text-right bg-rose-50/20">
                           <span className={`text-sm font-black ${v.financialImpact > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
                             {formatCurrency(v.financialImpact)}
@@ -420,9 +443,6 @@ const App: React.FC = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-          <div className="bg-[#F8FAFC] py-6 px-10 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
-             Cálculos baseados em 92 dias de operação (Out/2025 - Dez/2025).
           </div>
         </div>
       </main>
